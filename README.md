@@ -6,10 +6,13 @@ The applications are written in Go, with some supporting code in Python. A SCION
 
 More information on [SCION](https://www.scion-architecture.net/), and [tutorials on how to set up SCION and SCIONLab](https://netsec-ethz.github.io/scion-tutorials/).
 
+## bat
+
+bat is a CLI cURL-like tool for testing, debugging, and generally interacting with HTTP servers over SCION/QUIC. Documentation of the code is available in the [README.md](https://github.com/netsec-ethz/scion-apps/blob/master/bat/README.md)
 
 ## camerapp
 
-Camerapp contains image fetcher and server applications, using the SCION network. Documentation on the code is available in the [README.md](https://github.com/netsec-ethz/scion-apps/blob/master/camerapp/README.md)
+Camerapp contains image fetcher and server applications, using the SCION network. Documentation of the code is available in the [README.md](https://github.com/netsec-ethz/scion-apps/blob/master/camerapp/README.md)
 
 Installation and usage information is available on the [SCION Tutorials web page for camerapp](https://netsec-ethz.github.io/scion-tutorials/sample_projects/access_camera/).
 
