@@ -331,9 +331,9 @@ func main() {
 		} else {
 			var metric int
 			if pathAlgo == "mtu" {
-				metric = 0
+				metric = scionutil.MTU
 			} else if pathAlgo == "shortest" {
-				metric = 1
+				metric = scionutil.Shortest
 			}
 			pathEntry = scionutil.ChoosePathByMetric(metric, clientCCAddr, serverCCAddr)
 		}
