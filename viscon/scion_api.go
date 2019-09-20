@@ -3,7 +3,7 @@ package main
 /*
 #include <stdlib.h>
 typedef struct {
-	char *isdAs;
+	char  *isdAs;
 	long   ifid;
 } PathInterface;
 
@@ -112,7 +112,7 @@ func LocalAddress(retLocalAddress **C.char) CError {
 }
 
 //export Paths
-func Paths(paths_length *C.size_t, pDst *C.char) CError {
+func Paths(deleteme **C.HostInfo, retPathsLength *C.size_t, retPaths **C.PathReplyEntry, pDst *C.char) CError {
 	dst := C.GoString(pDst)
 	dbg("Go method Paths called with (%v) = %s", pDst, dst)
 	if !initialized() {
@@ -128,30 +128,43 @@ func Paths(paths_length *C.size_t, pDst *C.char) CError {
 		return cerr("No paths")
 	}
 
-	*paths_length = C.size_t(len(pathSet))
+	*retPathsLength = C.size_t(len(pathSet))
+	*retPaths = (*C.PathReplyEntry)(C.malloc(C.size_t(len(pathSet) * C.sizeof_PathReplyEntry)))
+	base := unsafe.Pointer(*retPaths)
+	i := 0
 	for _, p := range pathSet {
-		dbg("%d %s", len(p.Entry.Path.Interfaces)/2, p.Entry.Path.String())
-		var path *C.PathReplyEntry
-		path = pathReplyEntryToCStruct(p.Entry)
-		_ = path
+		centry := (*C.PathReplyEntry)(unsafe.Pointer(uintptr(base) + C.sizeof_PathReplyEntry*uintptr(i)))
+		// pathReplyEntryToCStruct(centry, p.Entry)
+		centry.hostInfo.port = 4242
+		dbg("Go, HostInfo.Host() = %+v", p.Entry.HostInfo.Addrs.Ipv4)
+		dbg("Go, centry hostinfo ipv4 = %+v , port= %+v", centry.hostInfo.ipv4, centry.hostInfo.port)
+		i++
 	}
+
+	dbg("FINAL Returning on %p , *p = %p ; %+v", retPaths, *retPaths, (**retPaths).hostInfo.ipv4)
+	*deleteme = (*C.HostInfo)(C.malloc(2 * C.sizeof_HostInfo))
+	for i := 0; i < 2; i++ {
+		centry := (*C.HostInfo)(unsafe.Pointer(uintptr(unsafe.Pointer(*deleteme)) + C.sizeof_HostInfo*uintptr(i)))
+		centry.port = 4242 + C.ushort(i)
+	}
+	dbg("FINALFINAL p = %p, *p = %p ; hostinfo.port = %v", deleteme, *deleteme, (**deleteme).port)
 	return nil
 }
 
-func pathReplyEntryToCStruct(entry *sciond.PathReplyEntry) *C.PathReplyEntry {
-	path := fwdPathMetaToCStruct(entry.Path)
+func pathReplyEntryToCStruct(centry *C.PathReplyEntry, srcEntry *sciond.PathReplyEntry) {
+	path := fwdPathMetaToCStruct(srcEntry.Path)
 	hostInfo := C.HostInfo{
-		port: C.ushort(entry.HostInfo.Port),
+		port: C.ushort(srcEntry.HostInfo.Port),
 	}
-	for i := 0; i < 4; i++ {
-		hostInfo.ipv4[i] = C.uchar(entry.HostInfo.Addrs.Ipv4[i])
+	if len(srcEntry.HostInfo.Addrs.Ipv4) > 0 {
+		for i := 0; i < 4; i++ {
+			hostInfo.ipv4[i] = C.uchar(srcEntry.HostInfo.Addrs.Ipv4[i])
+		}
+	} else {
+		print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4444 NOOOOOO !!!!")
 	}
-	return &C.PathReplyEntry{
-		path:     path,
-		hostInfo: hostInfo,
-	}
-	_ = path
-	return nil
+	centry.path = path
+	centry.hostInfo = hostInfo
 }
 
 func fwdPathMetaToCStruct(src *sciond.FwdPathMeta) *C.FwdPathMeta {
