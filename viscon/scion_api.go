@@ -39,6 +39,7 @@ import (
 	"github.com/netsec-ethz/scion-apps/lib/scionutil"
 	"github.com/scionproto/scion/go/lib/sciond"
 	"github.com/scionproto/scion/go/lib/snet"
+	"github.com/scionproto/scion/go/lib/spath"
 )
 
 var localAddress *snet.Addr
@@ -181,6 +182,28 @@ func fwdPathMetaToCStruct(src *sciond.FwdPathMeta) *C.FwdPathMeta {
 func pathInterfaceToCStruct(cpi *C.PathInterface, pi *sciond.PathInterface) {
 	cpi.isdAs = C.CString(pi.RawIsdas.String())
 	cpi.ifid = C.long(pi.IfID)
+}
+
+//export Open
+func Open(pHostAddress *C.char, cpath *C.PathReplyEntry) CError {
+	dst := C.GoString(pHostAddress)
+	dstAddress, err := snet.AddrFromString(dst)
+	if err != nil {
+		return errorToCString(err)
+	}
+	path, err := cPathToPathReplyEntry(cpath)
+	if err != nil {
+		return errorToCString(err)
+	}
+	dstAddress.Path = spath.New(path.Path.FwdPath)
+	dstAddress.Path.InitOffsets()
+	dstAddress.NextHop, _ = path.HostInfo.Overlay()
+	return nil
+}
+
+func cPathToPathReplyEntry(cpath *C.PathReplyEntry) (*sciond.PathReplyEntry, error) {
+	// TODO
+	return nil, nil
 }
 
 func main() {}

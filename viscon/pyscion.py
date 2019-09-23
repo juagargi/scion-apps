@@ -91,6 +91,9 @@ class Paths:
             i=i,
             p=self._paths[i]) for i in range(len(self._paths))) )
 
+    def __len__(self):
+        return len(self._paths)
+
  # ---------------------------------------------------------
 
 
