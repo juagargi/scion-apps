@@ -112,7 +112,7 @@ func LocalAddress(retLocalAddress **C.char) CError {
 }
 
 //export Paths
-func Paths(deleteme **C.HostInfo, retPathsLength *C.size_t, retPaths **C.PathReplyEntry, pDst *C.char) CError {
+func Paths(retPathsLength *C.size_t, retPaths **C.PathReplyEntry, pDst *C.char) CError {
 	dst := C.GoString(pDst)
 	dbg("Go method Paths called with (%v) = %s", pDst, dst)
 	if !initialized() {
@@ -134,20 +134,9 @@ func Paths(deleteme **C.HostInfo, retPathsLength *C.size_t, retPaths **C.PathRep
 	i := 0
 	for _, p := range pathSet {
 		centry := (*C.PathReplyEntry)(unsafe.Pointer(uintptr(base) + C.sizeof_PathReplyEntry*uintptr(i)))
-		// pathReplyEntryToCStruct(centry, p.Entry)
-		centry.hostInfo.port = 4242
-		dbg("Go, HostInfo.Host() = %+v", p.Entry.HostInfo.Addrs.Ipv4)
-		dbg("Go, centry hostinfo ipv4 = %+v , port= %+v", centry.hostInfo.ipv4, centry.hostInfo.port)
+		pathReplyEntryToCStruct(centry, p.Entry)
 		i++
 	}
-
-	dbg("FINAL Returning on %p , *p = %p ; %+v", retPaths, *retPaths, (**retPaths).hostInfo.ipv4)
-	*deleteme = (*C.HostInfo)(C.malloc(2 * C.sizeof_HostInfo))
-	for i := 0; i < 2; i++ {
-		centry := (*C.HostInfo)(unsafe.Pointer(uintptr(unsafe.Pointer(*deleteme)) + C.sizeof_HostInfo*uintptr(i)))
-		centry.port = 4242 + C.ushort(i)
-	}
-	dbg("FINALFINAL p = %p, *p = %p ; hostinfo.port = %v", deleteme, *deleteme, (**deleteme).port)
 	return nil
 }
 
