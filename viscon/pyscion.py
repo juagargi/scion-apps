@@ -18,8 +18,6 @@ constcharptr = c_char_p
 def str_to_cstr(str):
     return str.encode('utf-8')
 def cstr_to_str(cstr):
-    # return cstr.decode('utf-8')
-    # return cstr.contents.value
     return cast(cstr, c_char_p).value.decode('utf-8')
 
  # ---------------------------------------------------------
@@ -91,11 +89,8 @@ class Path:
         path.fwdPath_length = len(self.path.fwd_path)
         path.fwdPath = POINTER(c_ubyte)()
         path.fwdPath = cast(self.path.fwd_path, POINTER(c_ubyte))
-        # path.fwdPath = (c_ubyte * len(self.path.fwd_path))(self.path.fwd_path)
         path.interfaces_length = len(self.path.interfaces)
         interfaces = (_PathInterface * len(self.path.interfaces))()
-        # interfaces = cast(interfaces, POINTER(_PathInterface))
-        # self.STRUCT_ARRAY = ctypes.cast(elems,ctypes.POINTER(STRUCT_2))
         for i in range(len(self.path.interfaces)):
             interfaces[i].ifid = self.path.interfaces[i].if_id
             interfaces[i].isdAs = str_to_cstr(self.path.interfaces[i].isd_as)
@@ -156,7 +151,6 @@ lib.FreePathsMemory.restype = c_char_p
 def paths(destination):
     paths_n = c_size_t()
     paths = (POINTER(_PathReplyEntry))()
-    
     err = lib.Paths(byref(paths_n), byref(paths), str_to_cstr(destination))
     if err != None:
         raise SCIONException(err)
@@ -189,9 +183,30 @@ def close(fd):
 lib.Write.argtypes = [c_long, POINTER(c_char), c_size_t]
 lib.Write.restype = c_char_p
 def write(fd, buff):
-    # cbuff = (c_char * len(buff)).from_buffer(buff)
     cbuff = (c_char * len(buff))(*buff)
     err = lib.Write(fd, cbuff, len(buff))
     if err != None:
         raise SCIONException(err)
+
+
+lib.Listen.argtypes = [POINTER(c_long), c_ushort]
+lib.Listen.restype = c_char_p
+def listen(port):
+    fd = c_long()
+    err = lib.Listen(byref(fd), c_ushort(port))
+    if err != None:
+        raise SCIONException(err)
+    return fd
+
+
+lib.Read.argtypes = [POINTER(c_size_t), POINTER(charptr), c_long, POINTER(c_ubyte), c_size_t]
+lib.Read.restype = c_char_p
+def read(fd, buffer):
+    c_buffer = (c_ubyte * len(buffer)).from_buffer(buffer)
+    n = c_size_t()
+    client_address = charptr()
+    err = lib.Read(byref(n), byref(client_address), fd, c_buffer, len(buffer))
+    if err != None:
+        raise SCIONException(err)
+    return cstr_to_str(client_address), int(n.value)
 

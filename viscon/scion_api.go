@@ -106,7 +106,6 @@ func LocalAddress(retLocalAddress **C.char) CError {
 	}
 	cstr := C.CString(localAddress.String())
 	*retLocalAddress = cstr
-	_ = cstr
 	return nil
 }
 
@@ -191,6 +190,20 @@ func FreePathsMemory(paths *C.PathReplyEntry, paths_len C.size_t) CError {
 	return nil
 }
 
+func findFreeDescriptor(conn snet.Conn) (int, error) {
+	k := 0
+	for ; k < 4096; k++ {
+		if _, found := connections[k]; !found {
+			break
+		}
+	}
+	if k == 4096 {
+		return 0, fmt.Errorf("Connection descriptor table full")
+	}
+	connections[k] = conn
+	return k, nil
+}
+
 //export Open
 func Open(pFd *C.long, pHostAddress *C.char, cpath *C.PathReplyEntry) CError {
 	dst := C.GoString(pHostAddress)
@@ -216,17 +229,11 @@ func Open(pFd *C.long, pHostAddress *C.char, cpath *C.PathReplyEntry) CError {
 	if err != nil {
 		return errorToCString(err)
 	}
-	k := 0
-	for ; k < 4096; k++ {
-		if _, found := connections[k]; !found {
-			break
-		}
+	fd, err := findFreeDescriptor(conn)
+	if err != nil {
+		return errorToCString(err)
 	}
-	if k == 4096 {
-		return cerr("Connection descriptor table full")
-	}
-	connections[k] = conn
-	*pFd = C.long(k)
+	*pFd = C.long(fd)
 	return nil
 }
 
@@ -290,6 +297,46 @@ func Write(fd C.long, bytes *C.uchar, count C.size_t) CError {
 		return errorToCString(err)
 	}
 	dbg("Written %d bytes", n)
+	return nil
+}
+
+//export Listen
+func Listen(pFd *C.long, port C.ushort) CError {
+	if !initialized() {
+		return cerr("Not initialized")
+	}
+	serverAddress := localAddress.Copy()
+	serverAddress.Host.L4 = addr.NewL4UDPInfo(uint16(port))
+	conn, err := snet.ListenSCION("udp4", serverAddress)
+	if err != nil {
+		return errorToCString(err)
+	}
+	fd, err := findFreeDescriptor(conn)
+	if err != nil {
+		return errorToCString(err)
+	}
+	*pFd = C.long(fd)
+	return nil
+}
+
+//export Read
+func Read(bytesRead *C.size_t, pClientAddr **C.char, fd C.long, buffer *C.uchar, bufLength C.size_t) CError {
+	conn, found := connections[int(fd)]
+	if !found {
+		return cerr("Bad descriptor")
+	}
+	buff := make([]byte, int(bufLength))
+	n, clientAddr, err := conn.ReadFromSCION(buff)
+	if err != nil {
+		return errorToCString(err)
+	}
+	dbg("Read %d bytes from %s", n, clientAddr)
+	*bytesRead = C.size_t(n)
+	*pClientAddr = C.CString(clientAddr.String())
+	// copy bytes using an unsafe.Pointer "cast" (aka void*)
+	tmpArray := (*[1 << 30]byte)(unsafe.Pointer(buffer))
+	copy(tmpArray[:], buff)
+
 	return nil
 }
 
