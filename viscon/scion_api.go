@@ -198,6 +198,11 @@ func Open(pFd *C.long, pHostAddress *C.char, cpath *C.PathReplyEntry) CError {
 	if err != nil {
 		return errorToCString(err)
 	}
+	dbg("Go: opened %v ; host addr: %+v", dstAddress, dstAddress.Host)
+	dbg("L3 = %+v ; L4 = %+v", dstAddress.Host.L3, dstAddress.Host.L4)
+	if dstAddress.Host.L4 == nil {
+		return cerr("Unspecified port number")
+	}
 	path, err := cPathToPathReplyEntry(cpath)
 	if err != nil {
 		return errorToCString(err)
@@ -268,6 +273,21 @@ func Close(fd C.long) CError {
 	if err != nil {
 		return errorToCString(err)
 	}
+	return nil
+}
+
+//export Write
+func Write(fd C.long, bytes *C.uchar, count C.size_t) CError {
+	conn, found := connections[int(fd)]
+	if !found {
+		return cerr("Bad descriptor")
+	}
+	n, err := conn.Write(C.GoBytes(unsafe.Pointer(bytes), C.int(count)))
+	dbg("After write, err = %v", err)
+	if err != nil {
+		return errorToCString(err)
+	}
+	dbg("Written %d bytes", n)
 	return nil
 }
 

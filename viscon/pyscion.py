@@ -184,3 +184,14 @@ def close(fd):
     err = lib.Close(fd)
     if err != None:
         raise SCIONException(err)
+
+
+lib.Write.argtypes = [c_long, POINTER(c_char), c_size_t]
+lib.Write.restype = c_char_p
+def write(fd, buff):
+    # cbuff = (c_char * len(buff)).from_buffer(buff)
+    cbuff = (c_char * len(buff))(*buff)
+    err = lib.Write(fd, cbuff, len(buff))
+    if err != None:
+        raise SCIONException(err)
+
