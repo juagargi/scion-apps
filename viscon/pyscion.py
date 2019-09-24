@@ -123,6 +123,8 @@ def local_address():
 
 lib.Paths.argtypes = [POINTER(c_size_t), POINTER(POINTER(_PathReplyEntry)), charptr]
 lib.Paths.restype = c_char_p
+lib.FreePathsMemory.argtypes = [POINTER(_PathReplyEntry), c_size_t]
+lib.FreePathsMemory.restype = c_char_p
 def paths(destination):
     paths_n = c_size_t()
     paths = (POINTER(_PathReplyEntry))()
@@ -130,6 +132,10 @@ def paths(destination):
     err = lib.Paths(byref(paths_n), byref(paths), str_to_cstr(destination))
     if err != None:
         raise SCIONException(err)
-    return Paths(paths, paths_n)
+    pypaths = Paths(paths, paths_n)
+    err = lib.FreePathsMemory(paths, paths_n)
+    if err != None:
+        raise SCIONException(err)
+    return pypaths
 
 

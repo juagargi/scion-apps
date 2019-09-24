@@ -150,8 +150,6 @@ func pathReplyEntryToCStruct(centry *C.PathReplyEntry, srcEntry *sciond.PathRepl
 		for i := 0; i < 4; i++ {
 			hostInfo.ipv4[i] = C.uchar(srcEntry.HostInfo.Addrs.Ipv4[i])
 		}
-	} else {
-		print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4444 NOOOOOO !!!!")
 	}
 	centry.path = path
 	centry.hostInfo = hostInfo
@@ -184,8 +182,21 @@ func pathInterfaceToCStruct(cpi *C.PathInterface, pi *sciond.PathInterface) {
 	cpi.ifid = C.long(pi.IfID)
 }
 
+//export FreePathsMemory
+func FreePathsMemory(paths *C.PathReplyEntry, paths_len C.size_t) CError {
+	base := unsafe.Pointer(paths)
+	for i := 0; i < int(paths_len); i++ {
+		entry := (*C.PathReplyEntry)(unsafe.Pointer(uintptr(base) + C.sizeof_PathReplyEntry*uintptr(i)))
+		C.free(unsafe.Pointer(entry.path.fwdPath))
+		C.free(unsafe.Pointer(entry.path.interfaces))
+	}
+	dbg("Freeing base %p", base)
+	C.free(base)
+	return nil
+}
+
 //export Open
-func Open(pHostAddress *C.char, cpath *C.PathReplyEntry) CError {
+func Open(pFd *C.long, pHostAddress *C.char, cpath *C.PathReplyEntry) CError {
 	dst := C.GoString(pHostAddress)
 	dstAddress, err := snet.AddrFromString(dst)
 	if err != nil {
