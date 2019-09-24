@@ -1,6 +1,20 @@
+
+"""
+The API consists of:
+- init()
+- addr = local_address()
+- paths = paths(destination)
+- fd = open(destination, path)
+- close(fd)
+- write(fd, buffer)
+- fd = listen(port)
+- addr, n = read(fd, buffer)
+"""
+
 from ctypes import *
 from collections import namedtuple
 from ipaddress import IPv4Address
+
 
 lib = cdll.LoadLibrary('./scion_api.so')
 
@@ -13,7 +27,6 @@ class SCIONException(Exception):
         super().__init__(error_msg)
 
 charptr      = POINTER(c_char)
-constcharptr = c_char_p
 
 def str_to_cstr(str):
     return str.encode('utf-8')
@@ -182,9 +195,9 @@ def close(fd):
 
 lib.Write.argtypes = [c_long, POINTER(c_char), c_size_t]
 lib.Write.restype = c_char_p
-def write(fd, buff):
-    cbuff = (c_char * len(buff))(*buff)
-    err = lib.Write(fd, cbuff, len(buff))
+def write(fd, buffer):
+    cbuffer = (c_char * len(buffer))(*buffer)
+    err = lib.Write(fd, cbuffer, len(buffer))
     if err != None:
         raise SCIONException(err)
 
@@ -196,7 +209,7 @@ def listen(port):
     err = lib.Listen(byref(fd), c_ushort(port))
     if err != None:
         raise SCIONException(err)
-    return fd
+    return int(fd.value)
 
 
 lib.Read.argtypes = [POINTER(c_size_t), POINTER(charptr), c_long, POINTER(c_ubyte), c_size_t]

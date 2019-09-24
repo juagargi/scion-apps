@@ -20,16 +20,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-"""
-init()
-local_address()
-paths(destination)
-open(destination, path)
-close(fd)
-write(fd, buffer)
-listen(port)
-read(fd, buffer)
-"""
