@@ -37,6 +37,9 @@ import (
 	"unsafe"
 
 	"github.com/netsec-ethz/scion-apps/lib/scionutil"
+	"github.com/scionproto/scion/go/lib/addr"
+	"github.com/scionproto/scion/go/lib/common"
+	"github.com/scionproto/scion/go/lib/hostinfo"
 	"github.com/scionproto/scion/go/lib/sciond"
 	"github.com/scionproto/scion/go/lib/snet"
 	"github.com/scionproto/scion/go/lib/spath"
@@ -44,14 +47,9 @@ import (
 
 var localAddress *snet.Addr
 var sciondPath string
+var connections = make(map[int]snet.Conn)
 
-var deleteme = 0
-
-//export Add
-func Add() {
-	deleteme = deleteme + 1
-	dbg("Go Add, deleteme = %d", deleteme)
-}
+// -------------------------------------------------------------------------
 
 func dbg(format string, args ...interface{}) {
 	fmt.Printf(format+"\n", args...)
@@ -115,7 +113,6 @@ func LocalAddress(retLocalAddress **C.char) CError {
 //export Paths
 func Paths(retPathsLength *C.size_t, retPaths **C.PathReplyEntry, pDst *C.char) CError {
 	dst := C.GoString(pDst)
-	dbg("Go method Paths called with (%v) = %s", pDst, dst)
 	if !initialized() {
 		return cerr("Not initialized")
 	}
@@ -190,7 +187,6 @@ func FreePathsMemory(paths *C.PathReplyEntry, paths_len C.size_t) CError {
 		C.free(unsafe.Pointer(entry.path.fwdPath))
 		C.free(unsafe.Pointer(entry.path.interfaces))
 	}
-	dbg("Freeing base %p", base)
 	C.free(base)
 	return nil
 }
@@ -209,12 +205,70 @@ func Open(pFd *C.long, pHostAddress *C.char, cpath *C.PathReplyEntry) CError {
 	dstAddress.Path = spath.New(path.Path.FwdPath)
 	dstAddress.Path.InitOffsets()
 	dstAddress.NextHop, _ = path.HostInfo.Overlay()
+	conn, err := snet.DialSCION("udp4", localAddress, dstAddress)
+	if err != nil {
+		return errorToCString(err)
+	}
+	k := 0
+	for ; k < 4096; k++ {
+		if _, found := connections[k]; !found {
+			break
+		}
+	}
+	if k == 4096 {
+		return cerr("Connection descriptor table full")
+	}
+	connections[k] = conn
+	*pFd = C.long(k)
 	return nil
 }
 
-func cPathToPathReplyEntry(cpath *C.PathReplyEntry) (*sciond.PathReplyEntry, error) {
-	// TODO
-	return nil, nil
+func cPathToPathReplyEntry(centry *C.PathReplyEntry) (*sciond.PathReplyEntry, error) {
+	interfaces := make([]sciond.PathInterface, centry.path.interfaces_length)
+	for i := 0; i < len(interfaces); i++ {
+		pi := (*C.PathInterface)(unsafe.Pointer(uintptr(unsafe.Pointer(centry.path.interfaces)) + C.sizeof_PathInterface*uintptr(i)))
+		ia, err := addr.IAFromString(C.GoString(pi.isdAs))
+		if err != nil {
+			return nil, err
+		}
+		interfaces[i] = sciond.PathInterface{
+			IfID:     common.IFIDType(pi.ifid),
+			RawIsdas: ia.IAInt(),
+		}
+
+	}
+	entry := &sciond.PathReplyEntry{
+		Path: &sciond.FwdPathMeta{
+			Mtu:        uint16(centry.path.mtu),
+			ExpTime:    uint32(centry.path.expTime),
+			FwdPath:    C.GoBytes(unsafe.Pointer(centry.path.fwdPath), C.int(centry.path.fwdPath_length)),
+			Interfaces: interfaces,
+		},
+		HostInfo: hostinfo.HostInfo{
+			Addrs: struct {
+				Ipv4 []byte
+				Ipv6 []byte
+			}{
+				Ipv4: C.GoBytes(unsafe.Pointer(&centry.hostInfo.ipv4), 4),
+			},
+			Port: uint16(centry.hostInfo.port),
+		},
+	}
+	return entry, nil
+}
+
+//export Close
+func Close(fd C.long) CError {
+	conn, found := connections[int(fd)]
+	if !found {
+		return cerr("Bad descriptor")
+	}
+	err := conn.Close()
+	delete(connections, int(fd))
+	if err != nil {
+		return errorToCString(err)
+	}
+	return nil
 }
 
 func main() {}

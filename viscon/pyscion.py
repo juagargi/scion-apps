@@ -80,6 +80,32 @@ class Path:
             hostinfo=str(self.host_info),
             path=path)
 
+    def to_cstruct(self):
+        centry = _PathReplyEntry()
+        centry.hostInfo.port = self.host_info.port
+        centry.hostInfo.ipv4 = (c_ubyte*4).from_buffer_copy(self.host_info.ipv4.packed)
+
+        path = _FwdPathMeta()
+        path.mtu = self.path.mtu
+        path.expTime = self.path.exp_time
+        path.fwdPath_length = len(self.path.fwd_path)
+        path.fwdPath = POINTER(c_ubyte)()
+        path.fwdPath = cast(self.path.fwd_path, POINTER(c_ubyte))
+        # path.fwdPath = (c_ubyte * len(self.path.fwd_path))(self.path.fwd_path)
+        path.interfaces_length = len(self.path.interfaces)
+        interfaces = (_PathInterface * len(self.path.interfaces))()
+        # interfaces = cast(interfaces, POINTER(_PathInterface))
+        # self.STRUCT_ARRAY = ctypes.cast(elems,ctypes.POINTER(STRUCT_2))
+        for i in range(len(self.path.interfaces)):
+            interfaces[i].ifid = self.path.interfaces[i].if_id
+            interfaces[i].isdAs = str_to_cstr(self.path.interfaces[i].isd_as)
+        path.interfaces = POINTER(_PathInterface)()
+        path.interfaces = interfaces
+
+        centry.path = POINTER(_FwdPathMeta)()
+        centry.path.contents = path
+        return centry
+
 
 class Paths:
     """ A path from the source AS to the destination, as returned by SCION """
@@ -94,14 +120,16 @@ class Paths:
     def __len__(self):
         return len(self._paths)
 
+    def __getitem__(self, index):
+        return self._paths[index]
+
+    def __setitem__(self, index, value):
+        self._paths[index] = value
+
+    def __delitem__(self, index):
+        del self._paths[index]
+
  # ---------------------------------------------------------
-
-
-lib.Add.argtypes = []
-lib.restype = None
-def add():
-    lib.Add()
-    # print("python add")
 
 
 lib.Init.restype = c_char_p
@@ -139,3 +167,20 @@ def paths(destination):
     return pypaths
 
 
+lib.Open.argtypes = [POINTER(c_long), charptr, POINTER(_PathReplyEntry)]
+lib.Open.restype = c_char_p
+def open(destination, path):
+    fd = c_long()
+    cpath = path.to_cstruct()
+    err = lib.Open(byref(fd), str_to_cstr(destination), cpath)
+    if err != None:
+        raise SCIONException(err)
+    return int(fd.value)
+
+
+lib.Close.argtypes = [c_long]
+lib.Close.restype = c_char_p
+def close(fd):
+    err = lib.Close(fd)
+    if err != None:
+        raise SCIONException(err)
