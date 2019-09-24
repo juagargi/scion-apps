@@ -207,9 +207,11 @@ func Open(pFd *C.long, pHostAddress *C.char, cpath *C.PathReplyEntry) CError {
 	if err != nil {
 		return errorToCString(err)
 	}
-	dstAddress.Path = spath.New(path.Path.FwdPath)
-	dstAddress.Path.InitOffsets()
-	dstAddress.NextHop, _ = path.HostInfo.Overlay()
+	if !dstAddress.IA.Equal(localAddress.IA) {
+		dstAddress.Path = spath.New(path.Path.FwdPath)
+		dstAddress.Path.InitOffsets()
+		dstAddress.NextHop, _ = path.HostInfo.Overlay()
+	}
 	conn, err := snet.DialSCION("udp4", localAddress, dstAddress)
 	if err != nil {
 		return errorToCString(err)
