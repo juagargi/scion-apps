@@ -46,7 +46,6 @@ import (
 )
 
 var localAddress *snet.Addr
-var sciondPath string
 var connections = make(map[int]snet.Conn)
 
 // -------------------------------------------------------------------------
